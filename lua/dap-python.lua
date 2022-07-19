@@ -34,7 +34,19 @@ M.bdd_test_runner = 'behave'
 M.bdd_test_runners = {}
 
 local function prune_nil(items)
-  return vim.tbl_filter(function(x) return x end, items)
+  local result = vim.tbl_filter(function(x) return x end, items)
+  assert(result)
+  return result
+end
+
+local function extend_tbl(strategy, tbl, default)
+  local result = vim.tbl_extend(strategy, tbl or {}, default)
+  assert(result)
+  return result
+end
+
+local function expand_str(str)
+  return vim.fn.expand(str)
 end
 
 local is_windows = function()
@@ -81,7 +93,7 @@ end
 
 ---@private
 function M.test_runners.unittest(classname, methodname)
-  local path = vim.fn.expand('%:.:r:gs?/?.?')
+  local path = expand_str('%:.:r:gs?/?.?')
   local test_path = table.concat(prune_nil({ path, classname, methodname }), '.')
   local args = { '-v', test_path }
   return 'unittest', args
@@ -89,7 +101,7 @@ end
 
 ---@private
 function M.test_runners.pytest(classname, methodname)
-  local path = vim.fn.expand('%:p')
+  local path = expand_str('%:p')
   local test_path = table.concat(prune_nil({ path, classname, methodname }), '::')
   -- -s "allow output to stdout of test"
   local args = { '-s', test_path }
@@ -98,7 +110,7 @@ end
 
 ---@private
 function M.test_runners.django(classname, methodname)
-  local path = vim.fn.expand('%:r:gs?/?.?')
+  local path = expand_str('%:r:gs?/?.?')
   local test_path = table.concat(prune_nil({ path, classname, methodname }), '.')
   local args = { 'test', test_path }
   return 'django', args
@@ -106,7 +118,7 @@ end
 
 ---@private
 function M.bdd_test_runners.behave(line_number)
-  local path = vim.fn.expand('%:p')
+  local path = expand_str('%:p')
   local test_path = table.concat(prune_nil({ path, line_number }), ':')
   local args = { '--no-capture', test_path }
   return 'behave', args
@@ -117,8 +129,8 @@ end
 ---@param opts SetupOpts|nil See |SetupOpts|
 function M.setup(adapter_python_path, opts)
   local dap = load_dap()
-  adapter_python_path = adapter_python_path and vim.fn.expand(vim.fn.trim(adapter_python_path)) or 'python3'
-  opts = vim.tbl_extend('keep', opts or {}, default_setup_opts)
+  adapter_python_path = adapter_python_path and expand_str(vim.fn.trim(adapter_python_path)) or 'python3'
+  opts = extend_tbl('keep', opts, default_setup_opts)
   dap.adapters.python = function(cb, config)
     if config.request == 'attach' then
       local port = (config.connect or config).port
@@ -260,6 +272,8 @@ local function trigger_bdd_test(line_number, feature, scenario, opts)
   load_dap().run(vim.tbl_extend('force', config, opts.config or {}))
 end
 
+---@param classname string
+---@param methodname string|nil
 ---@param opts DebugOpts
 local function trigger_test(classname, methodname, opts)
   local test_runner = opts.test_runner or M.test_runner
@@ -317,7 +331,7 @@ end
 --- Run test class above cursor
 ---@param opts DebugOpts See |DebugOpts|
 function M.test_class(opts)
-  opts = vim.tbl_extend('keep', opts or {}, default_test_opts)
+  opts = extend_tbl('keep', opts, default_test_opts)
   local class_node = closest_above_cursor(get_class_nodes())
   if not class_node then
     print('No suitable test class found')
@@ -330,7 +344,7 @@ end
 --- Run the test method above cursor
 ---@param opts DebugOpts See |DebugOpts|
 function M.test_method(opts)
-  opts = vim.tbl_extend('keep', opts or {}, default_test_opts)
+  opts = extend_tbl('keep', opts, default_test_opts)
   local function_node = closest_above_cursor(get_function_nodes())
   if not function_node then
     print('No suitable test method found')
@@ -342,7 +356,7 @@ function M.test_method(opts)
 end
 
 function M.test_feature(opts)
-  opts = vim.tbl_extend('keep', opts or {}, default_test_opts)
+  opts = extend_tbl('keep', opts, default_test_opts)
   local _, feature = closest_bdd_above_cursor('feature')
   if not feature then
     print('No suitable feature found')
@@ -352,7 +366,7 @@ function M.test_feature(opts)
 end
 
 function M.test_scenario(opts)
-  opts = vim.tbl_extend('keep', opts or {}, default_test_opts)
+  opts = extend_tbl('keep', opts, default_test_opts)
   local line, scenario = closest_bdd_above_cursor('scenario')
   if not scenario then
     print('No suitable scenario found')
@@ -379,7 +393,9 @@ local function remove_indent(lines)
     end
   end
   if offset > 1 then
-    return vim.tbl_map(function(x) return string.sub(x, offset) end, lines)
+    local result = vim.tbl_map(function(x) return string.sub(x, offset) end, lines)
+    assert(result)
+    return result
   else
     return lines
   end
@@ -388,7 +404,7 @@ end
 --- Debug the selected code
 ---@param opts DebugOpts
 function M.debug_selection(opts)
-  opts = vim.tbl_extend('keep', opts or {}, default_test_opts)
+  opts = extend_tbl('keep', opts, default_test_opts)
   local start_row, _ = unpack(api.nvim_buf_get_mark(0, '<'))
   local end_row, _ = unpack(api.nvim_buf_get_mark(0, '>'))
   local lines = api.nvim_buf_get_lines(0, start_row - 1, end_row, false)
@@ -446,7 +462,7 @@ end
 ---@field pythonPath string|nil Path to python interpreter. Uses interpreter from `VIRTUAL_ENV` environment variable or `adapter_python_path` by default
 
 
----@alias TestRunner fun(classname: string, methodname: string): string module, string[] args
+---@alias TestRunner fun(classname: string, methodname: string|nil): string module, string[] args
 ---@alias BDDTestRunner fun(line:integer): string module, string[] args
 
 ---@alias DebugpyConsole "internalConsole"|"integratedTerminal"|"externalTerminal"|nil
