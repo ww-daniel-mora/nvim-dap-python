@@ -325,7 +325,7 @@ local function closest_bdd_above_cursor(bdd_type)
     local line = api.nvim_buf_get_lines(0, cursor, cursor + 1, false)[1]
     description = line:match(pattern)
   end
-  return cursor, description
+  return cursor + 1, description
 end
 
 --- Run test class above cursor
